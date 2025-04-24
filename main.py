@@ -42,27 +42,48 @@ def predict(image):
     interpreter.invoke()
 
     # Obtener las predicciones
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-
+    output_data = interpreter.get_tensor(output_details[0]['index'])	
     return output_data
 
-# Función para procesar las detecciones
-def process_detections(output, conf_threshold=0.5, iou_threshold=0.4):
-    # Deshacer la escala de las coordenadas predichas
-    boxes = output[..., :4]  # x, y, w, h
-    scores = output[..., 4]  # scores
-    class_ids = output[..., 5]  # clase predicha
+def process_detections(output, image_shape, conf_threshold=0.25, iou_threshold=0.45):
+    predictions = output[0]  # shape: (N, 85)
 
-    # Filtrar por puntuación
-    valid_boxes = boxes[scores > conf_threshold]
-    valid_scores = scores[scores > conf_threshold]
-    valid_class_ids = class_ids[scores > conf_threshold]
+    boxes = predictions[:, :4]  # xywh
+    objectness = predictions[:, 4]
+    class_probs = predictions[:, 5:]  # shape: (N, 80)
 
-    # Aplicar NMS (Non-Maximum Suppression) para eliminar las detecciones repetidas
-    # Puedes usar OpenCV o TensorFlow para NMS, aquí con OpenCV:
-    indices = cv2.dnn.NMSBoxes(valid_boxes.tolist(), valid_scores.tolist(), conf_threshold, iou_threshold)
+    # Calcular scores combinando objectness y probabilidad de clase
+    scores = objectness[:, None] * class_probs
+    class_ids = np.argmax(scores, axis=1)
+    confidences = np.max(scores, axis=1)
 
-    return valid_boxes[indices], valid_scores[indices], valid_class_ids[indices]
+    # Filtrar por umbral de confianza
+    mask = confidences > conf_threshold
+    boxes = boxes[mask]
+    confidences = confidences[mask]
+    class_ids = class_ids[mask]
+
+    # Convertir de xywh (normalizado) a xyxy (píxeles)
+    img_h, img_w = image_shape[:2]
+    xyxy_boxes = []
+    for box in boxes:
+        x, y, w, h = box
+        x1 = int((x - w / 2) * img_w)
+        y1 = int((y - h / 2) * img_h)
+        x2 = int((x + w / 2) * img_w)
+        y2 = int((y + h / 2) * img_h)
+        xyxy_boxes.append([x1, y1, x2, y2])
+
+    # Aplicar NMS usando OpenCV
+    indices = cv2.dnn.NMSBoxes(xyxy_boxes, confidences.tolist(), conf_threshold, iou_threshold)
+    indices = np.array(indices).flatten() if len(indices) > 0 else []
+
+    final_boxes = [xyxy_boxes[i] for i in indices]
+    final_scores = [confidences[i] for i in indices]
+    final_class_ids = [class_ids[i] for i in indices]
+
+    return final_boxes, final_scores, final_class_ids
+
 
 # Capturar imágenes desde la webcam en tiempo real
 cap = cv2.VideoCapture(0)  # 0 es el índice de la webcam, usa 1 si tienes varias cámaras
@@ -77,18 +98,17 @@ while True:
     output = predict(frame)
 
     # Procesar las detecciones
-    boxes, scores, class_ids = process_detections(output[0])
+    boxes, scores, class_ids = process_detections(output, frame.shape)
 
-    # Dibujar las cajas delimitadoras
     for i in range(len(boxes)):
-        x, y, w, h = boxes[i]
+        x1, y1, x2, y2 = boxes[i]
         score = scores[i]
-        class_id = int(class_ids[i])
+        class_id = class_ids[i]
 
-        # Dibujar la caja delimitadora en la imagen
-        cv2.rectangle(frame, (int(x), int(y)), (int(x + w), int(y + h)), (255, 0, 0), 2)
-        cv2.putText(frame, f'Class: {class_id} Score: {score:.2f}', (int(x), int(y) - 10),
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+        cv2.putText(frame, f'Class: {class_id} Score: {score:.2f}', (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
 
     # Mostrar la imagen con las predicciones
     cv2.imshow("Webcam - YOLOv5 TFLite", frame)
