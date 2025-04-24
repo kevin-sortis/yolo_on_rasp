@@ -88,32 +88,41 @@ def process_detections(output, image_shape, conf_threshold=0.25, iou_threshold=0
 # Capturar imágenes desde la webcam en tiempo real
 cap = cv2.VideoCapture(0)  # 0 es el índice de la webcam, usa 1 si tienes varias cámaras
 
+SKIP_FRAMES = 3  # Número de frames que se saltan entre cada inferencia
+frame_count = 0
+
+last_boxes = []
+last_scores = []
+last_class_ids = []
+
 while True:
     ret, frame = cap.read()
     if not ret:
         print("Error al capturar imagen")
         break
 
-    # Realizar la predicción
-    output = predict(frame)
+    if frame_count == 0:
+        # Realizar la predicción solo cada SKIP_FRAMES frames
+        output = predict(frame)
+        last_boxes, last_scores, last_class_ids = process_detections(output, frame.shape)
 
-    # Procesar las detecciones
-    boxes, scores, class_ids = process_detections(output, frame.shape)
-
-    for i in range(len(boxes)):
-        x1, y1, x2, y2 = boxes[i]
-        score = scores[i]
-        class_id = class_ids[i]
+    # Dibujar las detecciones del último frame procesado
+    for i in range(len(last_boxes)):
+        x1, y1, x2, y2 = last_boxes[i]
+        score = last_scores[i]
+        class_id = last_class_ids[i]
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
         cv2.putText(frame, f'Class: {class_id} Score: {score:.2f}', (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
-
-    # Mostrar la imagen con las predicciones
+    # Mostrar el frame
     cv2.imshow("Webcam - YOLOv5 TFLite", frame)
 
-    # Presionar 'q' para salir del bucle
+    # Aumentar y resetear el contador de frames
+    frame_count = (frame_count + 1) % SKIP_FRAMES
+
+    # Salir si se presiona 'q'
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
