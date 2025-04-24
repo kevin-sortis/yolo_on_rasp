@@ -1,4 +1,4 @@
-import tensorflow as tf
+import tflite_runtime.interpreter as tflite
 import numpy as np
 import cv2
 from PIL import Image
@@ -7,13 +7,12 @@ from PIL import Image
 MODEL_PATH = 'model/yolov5n-fp16.tflite'
 
 # Cargar el modelo TFLite
-interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+interpreter = tflite.Interpreter(model_path=MODEL_PATH)
 interpreter.allocate_tensors()
 
 # Obtener detalles de las entradas y salidas del modelo
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
-
 
 # Función para preprocesar la imagen
 def preprocess_image(image, img_size=640):
@@ -31,7 +30,6 @@ def preprocess_image(image, img_size=640):
 
     return image
 
-
 # Función para hacer la predicción
 def predict(image):
     # Preprocesar la imagen
@@ -48,6 +46,23 @@ def predict(image):
 
     return output_data
 
+# Función para procesar las detecciones
+def process_detections(output, conf_threshold=0.5, iou_threshold=0.4):
+    # Deshacer la escala de las coordenadas predichas
+    boxes = output[..., :4]  # x, y, w, h
+    scores = output[..., 4]  # scores
+    class_ids = output[..., 5]  # clase predicha
+
+    # Filtrar por puntuación
+    valid_boxes = boxes[scores > conf_threshold]
+    valid_scores = scores[scores > conf_threshold]
+    valid_class_ids = class_ids[scores > conf_threshold]
+
+    # Aplicar NMS (Non-Maximum Suppression) para eliminar las detecciones repetidas
+    # Puedes usar OpenCV o TensorFlow para NMS, aquí con OpenCV:
+    indices = cv2.dnn.NMSBoxes(valid_boxes.tolist(), valid_scores.tolist(), conf_threshold, iou_threshold)
+
+    return valid_boxes[indices], valid_scores[indices], valid_class_ids[indices]
 
 # Capturar imágenes desde la webcam en tiempo real
 cap = cv2.VideoCapture(0)  # 0 es el índice de la webcam, usa 1 si tienes varias cámaras
@@ -61,21 +76,19 @@ while True:
     # Realizar la predicción
     output = predict(frame)
 
-    # Aquí podrías procesar la salida para extraer las cajas delimitadoras (bounding boxes)
-    # Por ejemplo, si el modelo devuelve los bounding boxes y las clases predichas, puedes dibujarlas:
+    # Procesar las detecciones
+    boxes, scores, class_ids = process_detections(output[0])
 
-    # Asumiendo que la salida contiene boxes y clases
-    for detection in output[0]:
-        # Extrae las coordenadas de la caja y las clases
-        # Esto depende de cómo se haya entrenado el modelo, normalmente se devuelve [x, y, w, h, score, class_id]
-        x, y, w, h, score, class_id = detection[:6]
+    # Dibujar las cajas delimitadoras
+    for i in range(len(boxes)):
+        x, y, w, h = boxes[i]
+        score = scores[i]
+        class_id = int(class_ids[i])
 
-        # Si el puntaje de la predicción es mayor que un umbral
-        if score > 0.5:
-            # Dibujar la caja delimitadora en la imagen
-            cv2.rectangle(frame, (int(x), int(y)), (int(x + w), int(y + h)), (255, 0, 0), 2)
-            cv2.putText(frame, f'Class: {int(class_id)} Score: {score:.2f}', (int(x), int(y) - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+        # Dibujar la caja delimitadora en la imagen
+        cv2.rectangle(frame, (int(x), int(y)), (int(x + w), int(y + h)), (255, 0, 0), 2)
+        cv2.putText(frame, f'Class: {class_id} Score: {score:.2f}', (int(x), int(y) - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
     # Mostrar la imagen con las predicciones
     cv2.imshow("Webcam - YOLOv5 TFLite", frame)
