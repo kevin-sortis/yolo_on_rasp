@@ -3,6 +3,11 @@ import numpy as np
 import cv2
 from PIL import Image
 
+CLASS_COLORS = {
+    0: (0, 0, 255),    # Rojo para metal_can
+    1: (0, 255, 0),    # Verde para plastic_bottle
+    2: (255, 0, 0),    # Azul para tetra_pak
+}
 
 COCO_CLASSES = [
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
@@ -129,10 +134,12 @@ while True:
         score = last_scores[i]
         class_id = last_class_ids[i]
 
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-        label = f'{COCO_CLASSES[class_id]}: {score:.2f}'
+        #Obtiene el color asignado a la clase, para id desconocido pinta morado.
+        color = CLASS_COLORS.get(class_id, (255, 0, 255))
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        label = f'{TRASH_CLASSES[class_id]}: {score:.2f}'
         cv2.putText(frame, label, (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
 
     # Mostrar la imagen con las predicciones
