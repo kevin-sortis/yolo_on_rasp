@@ -4,9 +4,9 @@ import cv2
 from PIL import Image
 
 CLASS_COLORS = {
-    0: (0, 0, 255),    # Rojo para metal_can
-    1: (0, 255, 0),    # Verde para plastic_bottle
-    2: (255, 0, 0),    # Azul para tetra_pak
+    0: (0, 0, 255),    # Rojo
+    1: (0, 255, 0),    # Verde
+    2: (255, 0, 0),    # Azul
 }
 
 COCO_CLASSES = [
