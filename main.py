@@ -18,6 +18,8 @@ COCO_CLASSES = [
     "toothbrush"
 ]
 
+TRASH_CLASSES = ['botella', 'lata', 'tetrapak']
+
 # Ruta al archivo del modelo TFLite
 MODEL_PATH = 'model/yolov5n-fp16.tflite'
 
