@@ -31,18 +31,36 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-# Función para preprocesar la imagen
+
+def letterbox_image(image, target_size=(640, 640), color=(114, 114, 114)):
+    """Redimensiona la imagen sin distorsión agregando padding (letterbox)."""
+    h, w = image.shape[:2]
+    new_w, new_h = target_size
+
+    # Calcular escala para mantener la relación de aspecto
+    scale = min(new_w / w, new_h / h)
+    resized_w, resized_h = int(w * scale), int(h * scale)
+
+    # Redimensionar la imagen manteniendo la relación de aspecto
+    resized_image = cv2.resize(image, (resized_w, resized_h), interpolation=cv2.INTER_LINEAR)
+
+    # Crear nueva imagen con padding
+    result = np.full((new_h, new_w, 3), color, dtype=np.uint8)
+    top = (new_h - resized_h) // 2
+    left = (new_w - resized_w) // 2
+    result[top:top + resized_h, left:left + resized_w] = resized_image
+
+    return result
+
+
 def preprocess_image(image, img_size=640):
-    # Redimensionar la imagen
-    image = cv2.resize(image, (img_size, img_size))
+    # Aplicar letterbox
+    image = letterbox_image(image, target_size=(img_size, img_size))
 
-    # Convertir la imagen a float32
-    image = np.array(image, dtype=np.float32)
+    # Convertir a float32 y normalizar
+    image = image.astype(np.float32) / 255.0
 
-    # Normalizar la imagen (dependiendo del modelo, ajusta según sea necesario)
-    image = image / 255.0
-
-    # Expande las dimensiones para que sea compatible con el modelo
+    # Expandir dimensión para el batch
     image = np.expand_dims(image, axis=0)
 
     return image
