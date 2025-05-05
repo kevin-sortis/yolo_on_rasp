@@ -33,7 +33,7 @@ output_details = interpreter.get_output_details()
 
 
 def letterbox_image(image, target_size=(640, 640), color=(114, 114, 114)):
-    """Redimensiona la imagen sin distorsión agregando padding (letterbox)."""
+    """Redimensiona la imagen sin distorsión agregando padding a la imagen (letterbox)."""
     h, w = image.shape[:2]
     new_w, new_h = target_size
 
